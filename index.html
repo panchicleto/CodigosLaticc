@@ -1,151 +1,109 @@
-const express = require("express");
-const app = express();
-
-let accessCode = generateCode();
-let isActive = true;
-let lastUpdate = new Date();
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-function generateCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-app.get("/", (req, res) => {
-  res.send(`<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Panel de Control</title>
+  <title>Panel de Código</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      background: #f4f4f4;
-      padding: 2em;
+      font-family: sans-serif;
+      background-color: #f5f5f5;
+      padding: 2rem;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
     }
     .panel {
-      background: #fff;
-      padding: 2em;
-      border-radius: 1em;
+      background: white;
+      padding: 2rem;
+      border-radius: 1rem;
       box-shadow: 0 0 10px rgba(0,0,0,0.1);
       text-align: center;
-      width: 100%;
       max-width: 500px;
+      width: 100%;
     }
-    h1 {
-      margin-bottom: 1em;
+    .panel h1 {
+      margin-bottom: 1rem;
     }
-    .status, .code-box, .last-update {
-      margin: 1em 0;
-      font-size: 1.2em;
+    .status, .code, .update-time {
+      margin: 1rem 0;
+      font-size: 1.2rem;
     }
-    .code-box strong {
-      font-size: 2em;
+    .code span {
+      font-size: 2rem;
+      font-weight: bold;
+      display: inline-block;
+      margin-top: 0.5rem;
     }
     button {
-      padding: 1em 2em;
-      margin: 0.5em;
-      font-size: 1em;
+      margin: 0.5rem;
+      padding: 0.8rem 1.5rem;
+      font-size: 1rem;
       border: none;
-      border-radius: 0.5em;
+      border-radius: 0.5rem;
       cursor: pointer;
+      color: white;
     }
-    .on { background-color: #28a745; color: white; }
-    .off { background-color: #dc3545; color: white; }
-    .update { background-color: #007bff; color: white; }
+    .btn-update { background-color: #007bff; }
+    .btn-on { background-color: #28a745; }
+    .btn-off { background-color: #dc3545; }
   </style>
 </head>
 <body>
   <div class="panel">
     <h1>Panel de Código de Acceso</h1>
     <div class="status">Estado: <strong id="estado">Cargando...</strong></div>
-    <div class="code-box">Código actual: <strong id="codigo">---</strong></div>
-    <div class="last-update">Última actualización: <span id="actualizado">---</span></div>
+    <div class="code">Código actual: <span id="codigo">-----</span></div>
+    <div class="update-time">Última actualización: <span id="actualizado">---</span></div>
 
     <div>
-      <button class="on" onclick="encender()">Encender</button>
-      <button class="off" onclick="apagar()">Apagar</button>
+      <button class="btn-on" onclick="cambiarEstado('on')">Encender</button>
+      <button class="btn-off" onclick="cambiarEstado('off')">Apagar</button>
     </div>
     <div>
-      <button class="update" onclick="actualizarCodigo()">Actualizar Código</button>
+      <button class="btn-update" onclick="actualizarCodigo()">Actualizar Código</button>
     </div>
   </div>
 
   <script>
+    const API_BASE = "https://codigoslaticc-production.up.railway.app";
+
     async function cargarDatos() {
-      const res = await fetch('/status');
-      const data = await res.json();
-      document.getElementById("estado").textContent = data.active ? "ACTIVO" : "INACTIVO";
-      document.getElementById("estado").style.color = data.active ? "green" : "red";
-      document.getElementById("codigo").textContent = data.code;
-      document.getElementById("actualizado").textContent = new Date(data.lastUpdate).toLocaleString();
+      try {
+        const res = await fetch(`${API_BASE}/status`);
+        const data = await res.json();
+        document.getElementById("estado").textContent = data.active ? "ACTIVO" : "INACTIVO";
+        document.getElementById("estado").style.color = data.active ? "green" : "red";
+        document.getElementById("codigo").textContent = data.code;
+        document.getElementById("actualizado").textContent = new Date(data.lastUpdate).toLocaleString();
+      } catch (err) {
+        alert("Error al cargar los datos del servidor.");
+      }
     }
 
-    async function encender() {
-      await fetch('/power', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'on' })
-      });
-      cargarDatos();
-    }
-
-    async function apagar() {
-      await fetch('/power', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'off' })
-      });
-      cargarDatos();
+    async function cambiarEstado(accion) {
+      try {
+        await fetch(`${API_BASE}/power`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: accion })
+        });
+        cargarDatos();
+      } catch {
+        alert("Error al cambiar el estado.");
+      }
     }
 
     async function actualizarCodigo() {
-      await fetch('/update', { method: 'POST' });
-      cargarDatos();
+      try {
+        await fetch(`${API_BASE}/update`, { method: "POST" });
+        cargarDatos();
+      } catch {
+        alert("Error al generar nuevo código.");
+      }
     }
 
     cargarDatos();
   </script>
 </body>
-</html>`);
-});
-
-app.get("/status", (req, res) => {
-  res.json({
-    code: accessCode,
-    active: isActive,
-    lastUpdate
-  });
-});
-
-app.post("/power", (req, res) => {
-  const { action } = req.body;
-  if (action === "on") isActive = true;
-  if (action === "off") isActive = false;
-  res.json({ ok: true });
-});
-
-app.post("/update", (req, res) => {
-  accessCode = generateCode();
-  lastUpdate = new Date();
-  res.json({ ok: true });
-});
-
-app.get("/verify/:code", (req, res) => {
-  if (!isActive) return res.status(403).send("Acceso deshabilitado.");
-  if (req.params.code === accessCode) {
-    return res.send("Código válido.");
-  } else {
-    return res.status(400).send("Código inválido.");
-  }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Servidor corriendo en http://localhost:" + PORT);
-});
+</html>
